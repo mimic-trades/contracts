@@ -7,16 +7,19 @@ import "../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol";
 
 contract Token is StandardToken, BurnableToken, Ownable {
 
+    /**
+    * @dev Use SafeMath library for all uint256 variables
+    */
     using SafeMath for uint256;
 
     /**
     * @dev ERC20 variables
     */
     string public name = "MIMIC";
-    string public symbol = "MIM";
+    string public symbol = "MIMIC";
     uint256 public decimals = 18;
 
-    /** a
+    /**
     * @dev Total token supplys
     */
     uint256 public INITIAL_SUPPLY = 200000000 * (10 ** decimals);
@@ -65,6 +68,7 @@ contract Token is StandardToken, BurnableToken, Ownable {
     /** 
     * @dev Check whenever an address has the power to transfer tokens before the end of the ICO
     * @param _sender Address of the transaction sender
+    * TODO: Verify which addresses have to have lock-free tokens
     */
     modifier canTransferBeforeEndOfIco(address _sender) {
         require(
@@ -118,7 +122,7 @@ contract Token is StandardToken, BurnableToken, Ownable {
     * @param _addr The address in question
     * @param _amount The amount of tokens to lock
     */
-    function setLockedAmount(address _addr, uint256 _amount) onlyOwner public {
+    function setLockedAmount(address _addr, uint256 _amount) public onlyOwner {
         require(_addr != address(0x0), "Cannot set locked amount to null address");
 
         initialLockedAmounts[_addr] = _amount;
@@ -127,11 +131,11 @@ contract Token is StandardToken, BurnableToken, Ownable {
     }
 
     /** 
-    * @dev Updates (adds) the amount of locked tokens for a specific address. It doesn't transfer tokens!
+    * @dev Updates (adds to) the amount of locked tokens for a specific address. It doesn't transfer tokens!
     * @param _addr The address in question
     * @param _amount The amount of locked tokens to add
     */
-    function updateLockedAmount(address _addr, uint256 _amount) onlyOwner public {
+    function updateLockedAmount(address _addr, uint256 _amount) public onlyOwner {
         require(_addr != address(0x0), "Cannot update locked amount to null address");
         require(_amount > 0, "Cannot add 0");
 
@@ -140,11 +144,32 @@ contract Token is StandardToken, BurnableToken, Ownable {
         emit UpdateLockedAmount(_addr, _amount);
     }
 
-    function transfer(address _to, uint256 _value) canTransferBeforeEndOfIco(msg.sender) canTransferIfLocked(msg.sender, _value) public returns (bool) {
+    /**
+    * @dev Override of ERC20's transfer function with modifiers
+    * @param _to The address to which tranfer the tokens
+    * @param _value The amount of tokens to transfer
+    */
+    function transfer(address _to, uint256 _value)
+        public
+        canTransferBeforeEndOfIco(msg.sender) 
+        canTransferIfLocked(msg.sender, _value) 
+        returns (bool)
+    {
         return super.transfer(_to, _value);
     }
 
-    function transferFrom(address _from, address _to, uint _value) canTransferBeforeEndOfIco(_from) canTransferIfLocked(_from, _value) public returns (bool) {
+    /**
+    * @dev Override of ERC20's transfer function with modifiers
+    * @param _from The address from which tranfer the tokens
+    * @param _to The address to which tranfer the tokens
+    * @param _value The amount of tokens to transfer
+    */
+    function transferFrom(address _from, address _to, uint _value) 
+        public
+        canTransferBeforeEndOfIco(_from) 
+        canTransferIfLocked(_from, _value) 
+        returns (bool) 
+    {
         return super.transferFrom(_from, _to, _value);
     }
 
