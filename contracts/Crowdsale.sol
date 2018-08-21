@@ -1,9 +1,11 @@
 pragma solidity 0.4.24;
 
 import "../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol";
+import "../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol";
+import "../node_modules/zeppelin-solidity/contracts/crowdsale/distribution/utils/RefundVault.sol";
 import "./Token.sol";
 
-contract Crowdsale {
+contract Crowdsale is Ownable {
 
     /**
     * @dev Use SafeMath library for all uint256 variables
@@ -16,14 +18,14 @@ contract Crowdsale {
     Token public token;
 
     /**
+    * @dev RefundVault used to store ethereum during the Crowdsale and to refund investors if soft cap is not reached
+    */
+    RefundVault public vault;
+
+    /**
     * @dev How many tokens a buyer takes per wei
     */
     uint256 public rate;
-
-    /**
-    * @dev The address where all the funds will be stored
-    */
-    address public wallet;
 
     /**
     * @dev The amount of wei raised during the ICO
@@ -41,6 +43,11 @@ contract Crowdsale {
     uint256 public hardCap = 100000000 * (10 ** 18);
 
     /**
+    * @dev Crowdsale's soft cap in token units
+    */
+    uint256 public softCap = 100000000 * (10 ** 18);
+
+    /**
     * @dev Crowdsale start date
     */
     uint256 public startDate = 123;
@@ -51,9 +58,19 @@ contract Crowdsale {
     uint256 public endDate = 123;
 
     /**
+    * @dev Crowdsale is finished
+    */
+    bool public finalized = false;
+
+    /**
     * @dev Emitted when an amount of tokens is beign purchased
     */
     event Purchase(address indexed sender, address indexed beneficiary, uint256 value, uint256 amount);
+
+    /**
+    * @dev Emitted when the crowdsale has beeen finalized
+    */
+    event Finalize(address indexed sender, uint256 when);
 
     /**
     * @dev Contract constructor
@@ -66,7 +83,7 @@ contract Crowdsale {
 
         token = Token(_tokenAddress);
         rate = _rate;
-        wallet = _wallet;
+        vault = new RefundVault(_wallet);
     }
 
     /**
@@ -83,7 +100,9 @@ contract Crowdsale {
     function purchase(address _beneficiary) public payable {
         uint256 weiAmount = msg.value;
 
-        // Validate beneficiary and wei amount
+        // Validate beneficiary and wei amount and date
+        require(now >= startDate, "Crowdsale has not started yet");
+        require(now <= endDate, "Crowdsale has finished");
         require(_beneficiary != address(0), "Beneficiary Address cannot be a null address");
         require(weiAmount > 0, "Wei amount must be a positive integer");
 
@@ -97,8 +116,30 @@ contract Crowdsale {
         // Make the actual purchase
         _purchaseTokens(_beneficiary, tokenAmount);
 
+        // Transfer funds
+        _transferFunds();
+
         // Emit purchase event
         emit Purchase(msg.sender, _beneficiary, weiAmount, tokenAmount);
+    }
+
+    function finalize() public onlyOwner {
+        finalized = true;
+
+        if (isSoftCapReached()) {
+            vault.close();
+        } else {
+            vault.enableRefunds();
+        }
+
+        
+    }
+
+    /**
+    * @dev Returns whenever we have reached our soft cap
+    */
+    function isSoftCapReached() public view returns (bool){
+        return weiRaised >= softCap;
     }
 
     /**
@@ -108,6 +149,13 @@ contract Crowdsale {
     */
     function _purchaseTokens(address _beneficiary, uint256 _amount) internal {
         // TODO: implement
+    }
+
+    /**
+    * @dev Called at the end of the purchase, sends ethereums to the vault
+    */
+    function _transferFunds() internal {
+        vault.deposit.value(msg.value)(msg.sender);
     }
 
     /**

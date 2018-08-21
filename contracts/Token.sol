@@ -20,26 +20,24 @@ contract Token is StandardToken, BurnableToken, Ownable {
     uint256 public decimals = 18;
 
     /**
-    * @dev Total token supplys
+    * @dev Total token supply
     */
-    uint256 public INITIAL_SUPPLY = 200000000 * (10 ** decimals);
+    uint256 public INITIAL_SUPPLY = 900000000 * (10 ** decimals);
 
     /** 
     * @dev Addresses where the tokens will be stored initially
     */
-    address constant TEAM_ADDRESS       = 0x0;
-    address constant RESERVE_ADDRESS    = 0x0;
-    address constant LIQUIDITY_ADDRESS  = 0x0;
-    address constant ADVISOR_ADDRESS    = 0x0;
-    address constant BOUNTIES_ADDRESS   = 0x0;
-    address constant PARTNERS_ADDRESS   = 0x0;
     address constant ICO_ADDRESS        = 0x0;
     address constant PRESALE_ADDRESS    = 0x0;
 
-    /** 
-    * @dev ICO end date
+    /**
+    * @dev Address that can receive the tokens before the end of the ICO
     */
-    uint256 constant ICO_END_DATE = 12345;
+    address constant BACKUP_ONE     = 0x0;
+    address constant BACKUP_TWO     = 0x0;
+    address constant BACKUP_THREE   = 0x0;
+    address constant BACKUP_FOUR    = 0x0;
+    address constant BACKUP_FIVE    = 0x0;
 
     /** 
     * @dev Team members has temporally locked token.
@@ -68,20 +66,22 @@ contract Token is StandardToken, BurnableToken, Ownable {
     /** 
     * @dev Check whenever an address has the power to transfer tokens before the end of the ICO
     * @param _sender Address of the transaction sender
+    * @param _to Destination address of the transaction
     * TODO: Verify which addresses have to have lock-free tokens
     */
-    modifier canTransferBeforeEndOfIco(address _sender) {
+    modifier canTransferBeforeEndOfIco(address _sender, address _to) {
         require(
-            now >= ICO_END_DATE ||
+            now >= LOCK_START_DATE ||
             _sender == owner ||
-            _sender == TEAM_ADDRESS ||
-            _sender == RESERVE_ADDRESS || 
-            _sender == LIQUIDITY_ADDRESS ||
-            _sender == ADVISOR_ADDRESS ||
-            _sender == BOUNTIES_ADDRESS ||
-            _sender == PARTNERS_ADDRESS ||
             _sender == ICO_ADDRESS ||
-            _sender == PRESALE_ADDRESS
+            _sender == PRESALE_ADDRESS ||
+            (
+                _to == BACKUP_ONE ||
+                _to == BACKUP_TWO ||
+                _to == BACKUP_THREE || 
+                _to == BACKUP_FOUR || 
+                _to == BACKUP_FIVE
+            )
             , "ICO hasn't ended yet. Cannot transfer tokens."
         );
 
@@ -151,7 +151,7 @@ contract Token is StandardToken, BurnableToken, Ownable {
     */
     function transfer(address _to, uint256 _value)
         public
-        canTransferBeforeEndOfIco(msg.sender) 
+        canTransferBeforeEndOfIco(msg.sender, _to) 
         canTransferIfLocked(msg.sender, _value) 
         returns (bool)
     {
@@ -166,7 +166,7 @@ contract Token is StandardToken, BurnableToken, Ownable {
     */
     function transferFrom(address _from, address _to, uint _value) 
         public
-        canTransferBeforeEndOfIco(_from) 
+        canTransferBeforeEndOfIco(_from, _to) 
         canTransferIfLocked(_from, _value) 
         returns (bool) 
     {
