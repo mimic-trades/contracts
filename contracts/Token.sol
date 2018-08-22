@@ -43,20 +43,30 @@ contract Token is StandardToken, BurnableToken, Ownable {
     * @dev Team members has temporally locked token.
     *      Variables used to define how the tokens will be unlocked.
     */
-    uint256 constant LOCK_START_DATE    = 12345;
-    uint256 constant LOCK_END_DATE      = 12345;
-    uint256 constant LOCK_ABS_DIFF      = LOCK_END_DATE - LOCK_START_DATE;
+    uint256 public lockStartDate = 0;
+    uint256 public lockEndDate = 0;
+    uint256 public lockAbsoluteDifference = 0;
     mapping (address => uint256) public initialLockedAmounts;
+
+    /**
+    * @dev Defines if tokens arre free to move or not 
+    */
+    bool public areTokensFree = false;
 
     /** 
     * @dev Emitted when the token locked amount of an address is set
     */
-    event SetLockedAmount(address indexed owner, uint256 indexed amount);
+    event SetLockedAmount(address indexed owner, uint256 amount);
 
     /** 
     * @dev Emitted when the token locked amount of an address is updated
     */
-    event UpdateLockedAmount(address indexed owner, uint256 indexed amount);
+    event UpdateLockedAmount(address indexed owner, uint256 amount);
+
+    /**
+    * @dev Emitted when it will be time to free the unlocked tokens
+    */
+    event FreeTokens();
 
     constructor() public {
         totalSupply_ = INITIAL_SUPPLY;
@@ -67,11 +77,10 @@ contract Token is StandardToken, BurnableToken, Ownable {
     * @dev Check whenever an address has the power to transfer tokens before the end of the ICO
     * @param _sender Address of the transaction sender
     * @param _to Destination address of the transaction
-    * TODO: Verify which addresses have to have lock-free tokens
     */
     modifier canTransferBeforeEndOfIco(address _sender, address _to) {
         require(
-            now >= LOCK_START_DATE ||
+            areTokensFree ||
             _sender == owner ||
             _sender == ICO_ADDRESS ||
             _sender == PRESALE_ADDRESS ||
@@ -82,7 +91,7 @@ contract Token is StandardToken, BurnableToken, Ownable {
                 _to == BACKUP_FOUR || 
                 _to == BACKUP_FIVE
             )
-            , "ICO hasn't ended yet. Cannot transfer tokens."
+            , "Cannot transfer tokens yet"
         );
 
         _;
@@ -105,14 +114,14 @@ contract Token is StandardToken, BurnableToken, Ownable {
     * @param _addr The address in question
     */
     function getLockedAmount(address _addr) public view returns (uint256){
-        if (now >= LOCK_END_DATE || initialLockedAmounts[_addr] == 0x0)
+        if (now >= lockEndDate || initialLockedAmounts[_addr] == 0x0)
             return 0;
 
-        if (now < LOCK_START_DATE) 
+        if (now < lockStartDate) 
             return initialLockedAmounts[_addr];
 
-        uint256 alpha = uint256(now).sub(LOCK_START_DATE); // absolute purchase date
-        uint256 tokens = initialLockedAmounts[_addr].sub(alpha.mul(initialLockedAmounts[_addr]).div(LOCK_ABS_DIFF)); // T - (α * T) / β
+        uint256 alpha = uint256(now).sub(lockStartDate); // absolute purchase date
+        uint256 tokens = initialLockedAmounts[_addr].sub(alpha.mul(initialLockedAmounts[_addr]).div(lockAbsoluteDifference)); // T - (α * T) / β
 
         return tokens;
     }
@@ -142,6 +151,21 @@ contract Token is StandardToken, BurnableToken, Ownable {
         initialLockedAmounts[_addr] = initialLockedAmounts[_addr].add(_amount);
 
         emit UpdateLockedAmount(_addr, _amount);
+    }
+
+    /**
+    * @dev Frees all the unlocked tokens
+    */
+    function freeTokens() public onlyOwner {
+        require(!areTokensFree, "Tokens have already been freed");
+
+        areTokensFree = true;
+
+        lockStartDate = now;
+        lockEndDate = lockStartDate + 1 days;
+        lockAbsoluteDifference = lockEndDate.sub(lockStartDate);
+
+        emit FreeTokens();
     }
 
     /**

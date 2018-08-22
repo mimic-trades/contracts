@@ -27,6 +27,11 @@ contract Presale is Ownable {
     address public wallet;
 
     /**
+    * @dev The address where all the tokens are stored
+    */
+    address public holder;
+
+    /**
     * @dev The amount of wei raised during the ICO
     */
     uint256 public weiRaised;
@@ -62,6 +67,11 @@ contract Presale is Ownable {
     mapping (address => uint256) contributionAmounts;
 
     /**
+    * @dev Mapping containing which addresses are whitelisted
+    */
+    mapping (address => bool) whitelist;
+
+    /**
     * @dev Emitted when an amount of tokens is beign purchased
     */
     event Purchase(address indexed sender, address indexed beneficiary, uint256 value, uint256 amount);
@@ -69,36 +79,48 @@ contract Presale is Ownable {
     /**
     * @dev Emitted when we change the conversion rate 
     */
-    event ChangeRate(uint256 indexed rate);
+    event ChangeRate(uint256 rate);
 
     /**
     * @dev Emitted when we change the minimum contribution amount
     */
-    event ChangeMinimumAmount(uint256 indexed amount);
+    event ChangeMinimumAmount(uint256 amount);
 
     /**
     * @dev Emitted when we change the maximum contribution amount
     */
-    event ChangeMaximumAmount(uint256 indexed amount);
+    event ChangeMaximumAmount(uint256 amount);
+
+    /**
+    * @dev Emitted when the whitelisted state of and address is changed
+    */
+    event Whitelist(address indexed beneficiary, bool indexed whitelisted);
 
     /**
     * @dev Contract constructor
     * @param _tokenAddress The address of the previously deployed Token contract
     */
-    constructor(address _tokenAddress, uint256 _rate, address _wallet) public {
+    constructor(address _tokenAddress, uint256 _rate, address _wallet, address _holder) public {
         require(_tokenAddress != address(0), "Token Address cannot be a null address");
         require(_rate > 0, "Conversion rate must be a positive integer");
         require(_wallet != address(0), "Wallet Address cannot be a null address");
+        require(_holder != address(0), "Holder Address cannot be a null address");
 
         token = Token(_tokenAddress);
         rate = _rate;
         wallet = _wallet;
+        holder = _holder;
     }
 
     /**
     * @dev Modifier used to verify if an address can purchase
     */
     modifier canPurchase(address _beneficiary) {
+        require(now >= startDate, "Presale has not started yet");
+        require(now <= endDate, "Presale has finished");
+
+        require(whitelist[_beneficiary] == true, "Your address is not whitelisted");
+
         uint256 amount = uint256(contributionAmounts[_beneficiary]).add(msg.value);
 
         require(msg.value >= minimumAmount, "Cannot contribute less than the minimum amount");
@@ -118,7 +140,7 @@ contract Presale is Ownable {
     * @dev General purchase function, used by the fallback function and from buyers who are buying for other addresses
     * @param _beneficiary The Address that will receive the tokens
     */
-    function purchase(address _beneficiary) public canPurchase(_beneficiary) payable {
+    function purchase(address _beneficiary) internal canPurchase(_beneficiary) {
         uint256 weiAmount = msg.value;
 
         // Validate beneficiary and wei amount and date
@@ -179,12 +201,25 @@ contract Presale is Ownable {
     }
 
     /**
+    * @dev Updates the whitelisted status of an address
+    * @param _addr The address in question
+    * @param _whitelist The new whitelist status 
+    */
+    function setWhitelist(address _addr, bool _whitelist) public onlyOwner {
+        require(_addr != address(0x0), "Whitelisted address must be valid");
+
+        whitelist[_addr] = _whitelist;
+
+        emit Whitelist(_addr, _whitelist);
+    }
+
+    /**
     * @dev Processes the actual purchase (token transfer)
     * @param _beneficiary The Address that will receive the tokens
     * @param _amount The amount of tokens to transfer
     */
     function _purchaseTokens(address _beneficiary, uint256 _amount) internal {
-        token.transferFrom(wallet, _beneficiary, _amount);
+        token.transferFrom(holder, _beneficiary, _amount);
     }
 
     /**
@@ -193,7 +228,8 @@ contract Presale is Ownable {
     * @return Amount of tokens 
     */
     function _getTokenAmount(uint256 _wei) internal view returns (uint256) {
-        return _wei.mul(rate);
+        // wei * ((rate * (30 + 100)) / 100)
+        return _wei.mul(rate.mul(130).div(100));
     }
 
 }
