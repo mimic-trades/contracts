@@ -27,17 +27,16 @@ contract Token is StandardToken, BurnableToken, Ownable {
     /** 
     * @dev Addresses where the tokens will be stored initially
     */
-    address constant ICO_ADDRESS        = 0x0;
-    address constant PRESALE_ADDRESS    = 0x0;
+    address public constant ICO_ADDRESS        = 0x0;
+    address public constant PRESALE_ADDRESS    = 0x0;
 
     /**
     * @dev Address that can receive the tokens before the end of the ICO
     */
-    address constant BACKUP_ONE     = 0x0;
-    address constant BACKUP_TWO     = 0x0;
-    address constant BACKUP_THREE   = 0x0;
-    address constant BACKUP_FOUR    = 0x0;
-    address constant BACKUP_FIVE    = 0x0;
+    address public constant BACKUP_ONE     = 0x0;
+    address public constant BACKUP_TWO     = 0x0;
+    address public constant BACKUP_FOUR    = 0x0;
+    address public constant BACKUP_THREE   = 0x0;
 
     /** 
     * @dev Team members has temporally locked token.
@@ -89,7 +88,6 @@ contract Token is StandardToken, BurnableToken, Ownable {
                 _to == BACKUP_TWO ||
                 _to == BACKUP_THREE || 
                 _to == BACKUP_FOUR || 
-                _to == BACKUP_FIVE
             )
             , "Cannot transfer tokens yet"
         );
@@ -104,8 +102,9 @@ contract Token is StandardToken, BurnableToken, Ownable {
     * @param _amount The amount of tokens the address is trying to transfer
     */
     modifier canTransferIfLocked(address _sender, uint256 _amount) {
-        require(getLockedAmount(_sender) < _amount, "Locked amount is greater than transferring amount");
-
+        uint256 afterTransfer = balances[_sender].sub(_amount);
+        require(afterTransfer >= getLockedAmount(_sender), "Not enought unlocked tokens");
+        
         _;
     }
 
@@ -162,6 +161,7 @@ contract Token is StandardToken, BurnableToken, Ownable {
         areTokensFree = true;
 
         lockStartDate = now;
+        // lockEndDate = lockStartDate + 365 days;
         lockEndDate = lockStartDate + 1 days;
         lockAbsoluteDifference = lockEndDate.sub(lockStartDate);
 

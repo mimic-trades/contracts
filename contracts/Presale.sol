@@ -44,12 +44,12 @@ contract Presale is Ownable {
     /**
     * @dev Crowdsale start date
     */
-    uint256 constant startDate = 1535796000; // 2018-09-01 10:00:00 (UTC)
+    uint256 public constant startDate = 1535796000; // 2018-09-01 10:00:00 (UTC)
 
     /**
     * @dev Crowdsale end date
     */
-    uint256 constant endDate = 1538388000; // 2018-10-01 10:00:00 (UTC)
+    uint256 public constant endDate = 1538388000; // 2018-10-01 10:00:00 (UTC)
 
     /**
     * @dev The minimum amount of ethereum that we accept as a contribution
@@ -64,12 +64,12 @@ contract Presale is Ownable {
     /**
     * @dev Mapping tracking how much an address has contribuited
     */
-    mapping (address => uint256) contributionAmounts;
+    mapping (address => uint256) public contributionAmounts;
 
     /**
     * @dev Mapping containing which addresses are whitelisted
     */
-    mapping (address => bool) whitelist;
+    mapping (address => bool) public whitelist;
 
     /**
     * @dev Emitted when an amount of tokens is beign purchased
@@ -143,9 +143,7 @@ contract Presale is Ownable {
     function purchase(address _beneficiary) internal canPurchase(_beneficiary) {
         uint256 weiAmount = msg.value;
 
-        // Validate beneficiary and wei amount and date
-        require(now >= startDate, "Presale has not started yet");
-        require(now <= endDate, "Presale has finished");
+        // Validate beneficiary and wei amount
         require(_beneficiary != address(0), "Beneficiary Address cannot be a null address");
         require(weiAmount > 0, "Wei amount must be a positive integer");
 
@@ -157,7 +155,9 @@ contract Presale is Ownable {
         tokenPurchased = tokenPurchased.add(tokenAmount);
         contributionAmounts[_beneficiary] = contributionAmounts[_beneficiary].add(weiAmount);
 
-        // Make the actual purchase
+        _transferEther(weiAmount);
+
+        // Make the actual purchase and send the tokens to the contributor
         _purchaseTokens(_beneficiary, tokenAmount);
 
         // Emit purchase event
@@ -220,6 +220,15 @@ contract Presale is Ownable {
     */
     function _purchaseTokens(address _beneficiary, uint256 _amount) internal {
         token.transferFrom(holder, _beneficiary, _amount);
+    }
+
+    /**
+    * @dev Transfers the ethers recreived from the contributor to the Presale wallet
+    * @param _amount The amount of ethers to transfer
+    */
+    function _transferEther(uint256 _amount) internal {
+        // this should throw an exeption if it fails
+        wallet.transfer(_amount);
     }
 
     /**
