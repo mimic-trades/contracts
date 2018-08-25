@@ -44,22 +44,22 @@ contract Presale is Ownable {
     /**
     * @dev Crowdsale start date
     */
-    uint256 public constant startDate = 1535796000; // 2018-09-01 10:00:00 (UTC)
+    uint256 public constant startDate = 1535994000; // 2018-09-03 17:00:00 (UTC)
 
     /**
     * @dev Crowdsale end date
     */
-    uint256 public constant endDate = 1538388000; // 2018-10-01 10:00:00 (UTC)
+    uint256 public constant endDate = 1541264400; // 2018-10-01 10:00:00 (UTC)
 
     /**
     * @dev The minimum amount of ethereum that we accept as a contribution
     */
-    uint256 public minimumAmount = 20 ether;
+    uint256 public minimumAmount = 40 ether;
 
     /**
     * @dev The maximum amount of ethereum that an address can contribute
     */
-    uint256 public maximumAmount = 100 ether;
+    uint256 public maximumAmount = 200 ether;
 
     /**
     * @dev Mapping tracking how much an address has contribuited
@@ -203,7 +203,7 @@ contract Presale is Ownable {
     /**
     * @dev Updates the whitelisted status of an address
     * @param _addr The address in question
-    * @param _whitelist The new whitelist status 
+    * @param _whitelist The new whitelist status
     */
     function setWhitelist(address _addr, bool _whitelist) public onlyOwner {
         require(_addr != address(0x0), "Whitelisted address must be valid");
