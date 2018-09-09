@@ -8,7 +8,8 @@
   },
   "scripts": {
     "deploy-token": "node routine/deploy_token.js",
-    "deploy-presale": "node routine/deploy_presale.js"
+    "deploy-presale": "node routine/deploy_presale.js",
+    "test": "node routine/test.js"
   },
   "keywords": [],
   "author": "",

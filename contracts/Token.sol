@@ -35,8 +35,8 @@ contract Token is StandardToken, BurnableToken, Ownable {
     */
     address public constant BACKUP_ONE     = 0x9146EE4eb69f92b1e59BE9C7b4718d6B75F696bE;
     address public constant BACKUP_TWO     = 0xe12F95964305a00550E1970c3189D6aF7DB9cFdd;
-    address public constant BACKUP_FOUR    = 0x2FBF54a91535A5497c2aF3BF5F64398C4A9177a2;
-    address public constant BACKUP_THREE   = 0xa41554b1c2d13F10504Cc2D56bF0Ba9f845C78AC;
+    address public constant BACKUP_THREE   = 0x2FBF54a91535A5497c2aF3BF5F64398C4A9177a2;
+    address public constant BACKUP_FOUR    = 0xa41554b1c2d13F10504Cc2D56bF0Ba9f845C78AC;
 
     /** 
     * @dev Team members has temporally locked token.

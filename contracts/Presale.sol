@@ -49,7 +49,7 @@ contract Presale is Ownable {
     /**
     * @dev Crowdsale end date
     */
-    uint256 public constant endDate = 1541264400; // 2018-10-01 10:00:00 (UTC)
+    uint256 public constant endDate = 1543856400; // 2018-12-03 17:00:00 (UTC)
 
     /**
     * @dev The minimum amount of ethereum that we accept as a contribution

@@ -1,11 +1,10 @@
 pragma solidity 0.4.24;
 
-import "../node_modules/zeppelin-solidity/contracts/math/SafeMath.sol";
-import "../node_modules/zeppelin-solidity/contracts/ownership/Ownable.sol";
 import "../node_modules/zeppelin-solidity/contracts/crowdsale/distribution/utils/RefundVault.sol";
+import "../node_modules/zeppelin-solidity/contracts/crowdsale/distribution/RefundableCrowdsale.sol";
 import "./Token.sol";
 
-contract Crowdsale is Ownable {
+contract MimicCrowdsale is RefundableCrowdsale {
 
     /**
     * @dev Use SafeMath library for all uint256 variables
@@ -13,159 +12,162 @@ contract Crowdsale is Ownable {
     using SafeMath for uint256;
 
     /**
-    * @dev Our previously deployed Token (ERC20) contract
+    * @dev The address where all the tokens are stored
     */
-    Token public token;
+    address public holder;
 
     /**
-    * @dev RefundVault used to store ethereum during the Crowdsale and to refund investors if soft cap is not reached
+    * @dev  Mapping containing the first whitelist
     */
-    RefundVault public vault;
+    mapping (address => bool) public whitelistA;
+    
+    /**
+    * @dev  Mapping containing the second whitelist
+    */
+    mapping (address => bool) public whitelistB;
 
     /**
-    * @dev How many tokens a buyer takes per wei
+    * @dev Mapping tracking how much an address has contribuited
     */
-    uint256 public rate;
+    mapping (address => uint256) public contributionAmounts;
 
     /**
-    * @dev The amount of wei raised during the ICO
+    * @dev Maximum amount of ether whitelistA will be able to contribute
+    *      the first day
     */
-    uint256 public weiRaised;
+    uint256 public firstDayCap = 4 ether;
 
     /**
-    * @dev The amount of tokens purchased by the buyers
+    * @dev The minimum amount of ethereum that we accept as a contribution
     */
-    uint256 public tokenPurchased;
+    uint256 public minimumAmount = 0.1 ether;
 
     /**
-    * @dev Crowdsale's hard cap in token units
+    * @dev The maximum amount of ethereum that we accept as a contribution.
+    *      Starting from day two
     */
-    uint256 public hardCap = 100000000 * (10 ** 18);
-
-    /**
-    * @dev Crowdsale's soft cap in token units
-    */
-    uint256 public softCap = 100000000 * (10 ** 18);
+    uint256 public maximumAmount = 80 ether;
 
     /**
     * @dev Crowdsale start date
     */
-    uint256 public startDate = 123;
+    uint256 public openingTime = 123;
 
     /**
     * @dev Crowdsale end date
     */
-    uint256 public endDate = 123;
+    uint256 public closingTime = 123;
+    
+    /**
+    * @dev End of first day
+    */
+    uint256 public firstDayClosingTime = openingTime + 1 days;
 
     /**
-    * @dev Crowdsale is finished
+    * @dev Start date of the decreasing bonus period
     */
-    bool public finalized = false;
+    uint256 public startOfDecreasingBonusTime = openingTime + 4 days;
 
     /**
-    * @dev Emitted when an amount of tokens is beign purchased
+    * @dev End date of the decreasing bonus period
     */
-    event Purchase(address indexed sender, address indexed beneficiary, uint256 value, uint256 amount);
+    uint256 public endOfDecreasingBonusTime = startOfDecreasingBonusTime + 14 days;
 
     /**
-    * @dev Emitted when the crowdsale has beeen finalized
+    * @dev Decreasing period in days
     */
-    event Finalize(address indexed sender, uint256 when);
+    uint256 public absoluteDecreasingPeriodInDays = (endOfDecreasingBonusTime - startOfDecreasingBonusTime) / 1 days;
 
-    /**
-    * @dev Contract constructor
-    * @param _tokenAddress The address of the previously deployed Token contract
+    /*
+    goal --
+    isFinished
+    openingTime --
+    closingTime --
+    token --
+    wallet --
+    rate --
+    weiRaised
     */
-    constructor(address _tokenAddress, uint256 _rate, address _wallet) public {
-        require(_tokenAddress != address(0), "Token Address cannot be a null address");
-        require(_rate > 0, "Conversion rate must be a positive integer");
+
+    constructor(address _token, address _wallet, address _holder, uint256 _rate, uint256 _goal) RefundableCrowdsale(_goal) {
+        require(_token != address(0), "Token Address cannot be a null address");
         require(_wallet != address(0), "Wallet Address cannot be a null address");
-
-        token = Token(_tokenAddress);
-        rate = _rate;
-        vault = new RefundVault(_wallet);
-    }
-
-    /**
-    * @dev Fallback function, called when someone tryes to pay send ether to the contract address
-    */
-    function () external payable {
-        purchase(msg.sender);
-    }
-
-    /**
-    * @dev General purchase function, used by the fallback function and from buyers who are buying for other addresses
-    * @param _beneficiary The Address that will receive the tokens
-    */
-    function purchase(address _beneficiary) public payable {
-        uint256 weiAmount = msg.value;
-
-        // Validate beneficiary and wei amount and date
-        require(now >= startDate, "Crowdsale has not started yet");
-        require(now <= endDate, "Crowdsale has finished");
-        require(_beneficiary != address(0), "Beneficiary Address cannot be a null address");
-        require(weiAmount > 0, "Wei amount must be a positive integer");
-
-        // Calculate token amount
-        uint256 tokenAmount = _getTokenAmount(weiAmount);
-
-        // Update totals
-        weiRaised = weiRaised.add(weiAmount);
-        tokenPurchased = tokenPurchased.add(tokenAmount);
-
-        // Make the actual purchase
-        _purchaseTokens(_beneficiary, tokenAmount);
-
-        // Transfer funds
-        _transferFunds();
-
-        // Emit purchase event
-        emit Purchase(msg.sender, _beneficiary, weiAmount, tokenAmount);
-    }
-
-    function finalize() public onlyOwner {
-        finalized = true;
-
-        if (isSoftCapReached()) {
-            vault.close();
-        } else {
-            vault.enableRefunds();
-        }
-
+        require(_holder != address(0), "Holder Address cannot be a null address");
+        require(_rate > 0, "Conversion rate must be a positive integer");
         
+        token = ERC20(_token);
+        wallet = _wallet;
+        holder = _holder;
+        rate = _rate;
     }
 
-    /**
-    * @dev Returns whenever we have reached our soft cap
-    */
-    function isSoftCapReached() public view returns (bool){
-        return weiRaised >= softCap;
+    function _preValidatePurchase(address _beneficiary, uint256 _amount) internal {
+        require(_beneficiary != address(0), "Beneficiary cannot be a null address");
+        require(_amount > 0, "Contribution amount must be a positive integer");
+        require(_amount >= minimumAmount, "Cannot contribute less than the minimum amount");
+        require(now >= openingTime, "Crowdsale has not started yet");
+        require(now < closingTime, "Crowdsale has ended");
+
+        uint256 nextAmount = contributionAmounts[_beneficiary].add(_amount);
+        if (_isFirstDay()) {
+            if (!_isInWhitelistA(_beneficiary)) {
+                revert("This address cannot contribute the first day");
+            }
+
+            require(nextAmount <= firstDayCap, "Cannot contribute more than the maximum amount");
+        } else {
+            require(_isInWhitelistA(_beneficiary) || _isInWhitelistB(_beneficiary), "Address not whitelisted");
+            require(nextAmount <= maximumAmount, "Cannot contribute more than the maximum amount");
+        }
     }
 
-    /**
-    * @dev Processes the actual purchase (token transfer)
-    * @param _beneficiary The Address that will receive the tokens
-    * @param _amount The amount of tokens to transfer
-    */
-    function _purchaseTokens(address _beneficiary, uint256 _amount) internal {
-        // TODO: implement
+    function _processPurchase(address _beneficiary, uint256 _amount) internal {
+        contributionAmounts[_beneficiary] = contributionAmounts[_beneficiary].add(_amount);
+
+        _deliverTokens(_beneficiary, _amount);
     }
 
-    /**
-    * @dev Called at the end of the purchase, sends ethereums to the vault
-    */
-    function _transferFunds() internal {
-        vault.deposit.value(msg.value)(msg.sender);
+    function _deliverTokens(address _beneficiary, uint256 _amount) internal {
+        token.transfer(_beneficiary, _amount);
     }
 
-    /**
-    * @dev Returns an amount of wei converted in tokens
-    * @param _wei Value in wei to be converted
-    * @return Amount of tokens 
-    */
     function _getTokenAmount(uint256 _wei) internal view returns (uint256) {
-        // TODO: add time slices
-        return _wei.mul(rate);
+        // wei * ((rate * (BONUS + 100)) / 100)
+        return _wei.mul(rate.mul(getBonus().add(100)).div(100));
+    }
+
+    function _isFirstDay() internal view returns (bool) {
+        return now < firstDayClosingTime;
+    }
+
+    function _isInWhitelistA(address _beneficiary) internal view returns (bool) {
+        return whitelistA[_beneficiary] == true;
+    }
+
+    function _isInWhitelistB(address _beneficiary) internal view returns (bool) {
+        return whitelistB[_beneficiary] == true;
+    }
+
+    function getBonus() public view returns (uint256) {
+        uint256 bonus = 0;
+        
+        if (now >= openingTime && now < firstDayClosingTime) {
+            // first day
+            bonus = 20;
+        } else if (now >= firstDayClosingTime && now < startOfDecreasingBonusTime) {
+            // first 2 days after first day
+            if (now < firstDayClosingTime + 1 days) {
+                bonus = 20;
+            } else {
+                bonus = 15;
+            }
+        } else if (now >= startOfDecreasingBonusTime && now < endOfDecreasingBonusTime) {
+            // decreasing bonus period
+            uint256 difference = (now - startOfDecreasingBonusTime) / 1 days;
+            bonus = absoluteDecreasingPeriodInDays - difference;
+        }
+        
+        return bonus;
     }
 
 }
