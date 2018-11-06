@@ -57,9 +57,14 @@ contract Presale is Ownable {
     uint256 public minimumAmount = 40 ether;
 
     /**
-    * @dev The maximum amount of ethereum that an address can contribute
+    * @dev The maximum amount of ethereum that an address (whitelist A) can contribute
     */
-    uint256 public maximumAmount = 200 ether;
+    uint256 public maximumAmountA = 200 ether;
+
+    /**
+    * @dev The maximum amount of ethereum that an address (whitelist B) can contribute
+    */
+    uint256 public maximumAmountB = 200 ether;
 
     /**
     * @dev Mapping tracking how much an address has contribuited
@@ -67,9 +72,14 @@ contract Presale is Ownable {
     mapping (address => uint256) public contributionAmounts;
 
     /**
-    * @dev Mapping containing which addresses are whitelisted
+    * @dev Mapping containing which addresses are in the first whitelist
     */
-    mapping (address => bool) public whitelist;
+    mapping (address => bool) public whitelistA;
+
+    /**
+    * @dev Mapping containing which addresses are in the second whitelist
+    */
+    mapping (address => bool) public whitelistB;
 
     /**
     * @dev Emitted when an amount of tokens is beign purchased
@@ -87,14 +97,24 @@ contract Presale is Ownable {
     event ChangeMinimumAmount(uint256 amount);
 
     /**
-    * @dev Emitted when we change the maximum contribution amount
+    * @dev Emitted when we change the maximum contribution amount (first whitelist)
     */
-    event ChangeMaximumAmount(uint256 amount);
+    event ChangeMaximumAmountA(uint256 amount);
 
     /**
-    * @dev Emitted when the whitelisted state of and address is changed
+    * @dev Emitted when we change the maximum contribution amount (second whitelist)
     */
-    event Whitelist(address indexed beneficiary, bool indexed whitelisted);
+    event ChangeMaximumAmountB(uint256 amount);
+
+    /**
+    * @dev Emitted when the whitelisted state of an address is changed
+    */
+    event WhitelistA(address indexed beneficiary, bool indexed whitelisted);
+
+    /**
+    * @dev Emitted when the whitelisted state of an address is changed
+    */
+    event WhitelistB(address indexed beneficiary, bool indexed whitelisted);
 
     /**
     * @dev Contract constructor
@@ -119,13 +139,22 @@ contract Presale is Ownable {
         require(now >= startDate, "Presale has not started yet");
         require(now <= endDate, "Presale has finished");
 
-        require(whitelist[_beneficiary] == true, "Your address is not whitelisted");
+        require(
+            whitelistA[_beneficiary] ||
+            whitelistB[_beneficiary],
+            "Your address is not whitelisted"
+        );
 
         uint256 amount = uint256(contributionAmounts[_beneficiary]).add(msg.value);
 
         require(msg.value >= minimumAmount, "Cannot contribute less than the minimum amount");
-        require(amount <= maximumAmount, "Cannot contribute more than the maximum amount");
-        
+
+        if (whitelistA[_beneficiary]) {
+            require(amount < maximumAmountA, "Cannot contribute more than the maximum amount");
+        } else {
+            require(amount < maximumAmountB, "Cannot contribute more than the maximum amount");
+        }
+
         _;
     }
 
@@ -192,12 +221,24 @@ contract Presale is Ownable {
     * @dev Updates the maximum contribution amount to a new value
     * @param _amount The new maximum contribution amount expressed in wei
     */
-    function updateMaximumAmount(uint256 _amount) public onlyOwner {
+    function updateMaximumAmountA(uint256 _amount) public onlyOwner {
         require(_amount > 0, "Maximum amount must be a positive integer");
 
-        maximumAmount = _amount;
+        maximumAmountA = _amount;
 
-        emit ChangeMaximumAmount(_amount);
+        emit ChangeMaximumAmountA(_amount);
+    }
+
+    /**
+    * @dev Updates the maximum contribution amount to a new value
+    * @param _amount The new maximum contribution amount expressed in wei
+    */
+    function updateMaximumAmountB(uint256 _amount) public onlyOwner {
+        require(_amount > 0, "Maximum amount must be a positive integer");
+
+        maximumAmountB = _amount;
+
+        emit ChangeMaximumAmountB(_amount);
     }
 
     /**
@@ -205,12 +246,25 @@ contract Presale is Ownable {
     * @param _addr The address in question
     * @param _whitelist The new whitelist status
     */
-    function setWhitelist(address _addr, bool _whitelist) public onlyOwner {
+    function setWhitelistA(address _addr, bool _whitelist) public onlyOwner {
         require(_addr != address(0x0), "Whitelisted address must be valid");
 
-        whitelist[_addr] = _whitelist;
+        whitelistA[_addr] = _whitelist;
 
-        emit Whitelist(_addr, _whitelist);
+        emit WhitelistA(_addr, _whitelist);
+    }
+
+    /**
+    * @dev Updates the whitelisted status of an address
+    * @param _addr The address in question
+    * @param _whitelist The new whitelist status
+    */
+    function setWhitelistB(address _addr, bool _whitelist) public onlyOwner {
+        require(_addr != address(0x0), "Whitelisted address must be valid");
+
+        whitelistB[_addr] = _whitelist;
+
+        emit WhitelistB(_addr, _whitelist);
     }
 
     /**

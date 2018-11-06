@@ -89,7 +89,15 @@ contract MimicCrowdsale is RefundableCrowdsale {
     weiRaised
     */
 
-    constructor(address _token, address _wallet, address _holder, uint256 _rate, uint256 _goal) RefundableCrowdsale(_goal) {
+    /**
+    * @dev Contract constructor
+    * @param _token Token's contract address
+    * @param _wallet Receiving wallet's address
+    * @param _holder Tokens' holder address
+    * @param _rate The initial conversion
+    * @param _goal The minimum amount of wei to raise in order to finalize the Crowdsale
+    */
+    constructor(address _token, address _wallet, address _holder, uint256 _rate, uint256 _goal) RefundableCrowdsale(_goal) public {
         require(_token != address(0), "Token Address cannot be a null address");
         require(_wallet != address(0), "Wallet Address cannot be a null address");
         require(_holder != address(0), "Holder Address cannot be a null address");
@@ -101,53 +109,9 @@ contract MimicCrowdsale is RefundableCrowdsale {
         rate = _rate;
     }
 
-    function _preValidatePurchase(address _beneficiary, uint256 _amount) internal {
-        require(_beneficiary != address(0), "Beneficiary cannot be a null address");
-        require(_amount > 0, "Contribution amount must be a positive integer");
-        require(_amount >= minimumAmount, "Cannot contribute less than the minimum amount");
-        require(now >= openingTime, "Crowdsale has not started yet");
-        require(now < closingTime, "Crowdsale has ended");
-
-        uint256 nextAmount = contributionAmounts[_beneficiary].add(_amount);
-        if (_isFirstDay()) {
-            if (!_isInWhitelistA(_beneficiary)) {
-                revert("This address cannot contribute the first day");
-            }
-
-            require(nextAmount <= firstDayCap, "Cannot contribute more than the maximum amount");
-        } else {
-            require(_isInWhitelistA(_beneficiary) || _isInWhitelistB(_beneficiary), "Address not whitelisted");
-            require(nextAmount <= maximumAmount, "Cannot contribute more than the maximum amount");
-        }
-    }
-
-    function _processPurchase(address _beneficiary, uint256 _amount) internal {
-        contributionAmounts[_beneficiary] = contributionAmounts[_beneficiary].add(_amount);
-
-        _deliverTokens(_beneficiary, _amount);
-    }
-
-    function _deliverTokens(address _beneficiary, uint256 _amount) internal {
-        token.transfer(_beneficiary, _amount);
-    }
-
-    function _getTokenAmount(uint256 _wei) internal view returns (uint256) {
-        // wei * ((rate * (BONUS + 100)) / 100)
-        return _wei.mul(rate.mul(getBonus().add(100)).div(100));
-    }
-
-    function _isFirstDay() internal view returns (bool) {
-        return now < firstDayClosingTime;
-    }
-
-    function _isInWhitelistA(address _beneficiary) internal view returns (bool) {
-        return whitelistA[_beneficiary] == true;
-    }
-
-    function _isInWhitelistB(address _beneficiary) internal view returns (bool) {
-        return whitelistB[_beneficiary] == true;
-    }
-
+    /**
+    * @dev Calculates the bonus amount based on the time of the transaction
+    */
     function getBonus() public view returns (uint256) {
         uint256 bonus = 0;
         
@@ -168,6 +132,85 @@ contract MimicCrowdsale is RefundableCrowdsale {
         }
         
         return bonus;
+    }
+
+    /**
+    * @dev Prevalidates with some sanity checks
+    * @param _beneficiary The address that's goind go receive the tokens
+    * @param _amount The amount of wei contributed
+    */
+    function _preValidatePurchase(address _beneficiary, uint256 _amount) internal {
+        require(_beneficiary != address(0), "Beneficiary cannot be a null address");
+        require(_amount > 0, "Contribution amount must be a positive integer");
+        require(_amount >= minimumAmount, "Cannot contribute less than the minimum amount");
+        require(now >= openingTime, "Crowdsale has not started yet");
+        require(now < closingTime, "Crowdsale has ended");
+
+        uint256 nextAmount = contributionAmounts[_beneficiary].add(_amount);
+        if (_isFirstDay()) {
+            if (!_isInWhitelistA(_beneficiary)) {
+                revert("This address cannot contribute the first day");
+            }
+
+            require(nextAmount <= firstDayCap, "Cannot contribute more than the maximum amount");
+        } else {
+            require(_isInWhitelistA(_beneficiary) || _isInWhitelistB(_beneficiary), "Address not whitelisted");
+            require(nextAmount <= maximumAmount, "Cannot contribute more than the maximum amount");
+        }
+    }
+
+    /**
+    * @dev Actual purchase function, executed only if the prevalidation function didn't fail
+    * @param _beneficiary The address that's goind go receive the tokens
+    * @param _amount The amount of wei contributed
+    */
+    function _processPurchase(address _beneficiary, uint256 _amount) internal {
+        uint256 tokenAmount = _getTokenAmount(_amount);
+        require(tokenAmount > 0, "Cannot transfer zero tokens");
+        
+        // update stats
+        contributionAmounts[_beneficiary] = contributionAmounts[_beneficiary].add(_amount);
+
+        _deliverTokens(_beneficiary, tokenAmount);
+    }
+
+    /**
+    * @dev Transfer calculated tokens to the beneficiary address
+    * @param _beneficiary The address that's goind go receive the tokens
+    * @param _amount The amount of tokens to transfer
+    */
+    function _deliverTokens(address _beneficiary, uint256 _amount) internal {
+        token.transfer(_beneficiary, _amount);
+    }
+
+    /**
+    * @dev Calculates the amount of tokens to transfer accounting for the current bonus
+    * @param _wei The contribution amount in wei
+    */
+    function _getTokenAmount(uint256 _wei) internal view returns (uint256) {
+        // wei * ((rate * (BONUS + 100)) / 100)
+        return _wei.mul(rate.mul(getBonus().add(100)).div(100));
+    }
+
+    /**
+    * @dev Returns true if we are in the first day of the Crowdsale
+    */
+    function _isFirstDay() internal view returns (bool) {
+        return now < firstDayClosingTime;
+    }
+
+    /**
+    * @dev Checks if the beneficiary address is in our first whitelist 
+    */
+    function _isInWhitelistA(address _beneficiary) internal view returns (bool) {
+        return whitelistA[_beneficiary] == true;
+    }
+
+    /**
+    * @dev Checks if the beneficiary address is in our second whitelist 
+    */
+    function _isInWhitelistB(address _beneficiary) internal view returns (bool) {
+        return whitelistB[_beneficiary] == true;
     }
 
 }
